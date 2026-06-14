@@ -5,13 +5,7 @@
 #include <chrono>
 #include <thread>
 #include <conio.h>
-/*
-note: update void cariCleaner, di struck akun tambah spesialisasi, 
-tambah fungsi textFix buat case sensitive search
-tambah fungsi liat pesanan buat pelanggan,
-pisah menu pelanggan ama cleaner di main
-sama pause disuruh dosen kemarin
-*/ 
+
 using namespace std;
 
 struct Akun { string username, password, role, lokasi, spesialisasi; float rating; };
@@ -33,28 +27,6 @@ int jmlPesanan = 0, nextIdPesanan = 1;
 string currentUser = ""; 
 string currentRole = "";
 
-void login() {
-    string user, pass;
-    cout << "\n--- FORM LOGIN ---\n";
-    cout << "Username: "; cin >> user;
-    cout << "Password: "; cin >> pass;
-    
-    for (int i = 0; i < jmlAkun; i++) {
-        if (dbAkun[i].username == user && dbAkun[i].password == pass) {
-            currentUser = user; 
-            currentRole = dbAkun[i].role;
-            cout << "Login Sukses! Selamat datang, " << currentUser << " (" << currentRole << ")\n"; 
-            system("pause");
-            system("cls");
-            return;
-        }
-    }
-    cout << "Login Gagal! Username atau password salah.\n";
-    system("pause");
-    system("cls");
-}
-
-//----------------------------------------------
 void pauseLayar() {
     cout << "\nTekan Enter untuk lanjut...";
     cin.ignore();
@@ -67,12 +39,82 @@ bool textFix(string teks, string keyword) {
     return teks.find(keyword) != string::npos;
 }
 
+bool usernameExists(const string& user) {
+    for (int i = 0; i < jmlAkun; i++) {
+        if (dbAkun[i].username == user) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void clearScreen() {
     system("cls");
     cout.flush();
     this_thread::sleep_for(chrono::milliseconds(50));
 }
-//=====================================================
+void login() {
+    clearScreen();
+    string user, pass;
+    cout << "\n--- FORM LOGIN ---\n";
+    cout << "Username: "; cin >> user;
+    cout << "Password: "; cin >> pass;
+    
+    for (int i = 0; i < jmlAkun; i++) {
+        if (dbAkun[i].username == user && dbAkun[i].password == pass) {
+            currentUser = user; 
+            currentRole = dbAkun[i].role;
+            cout << "Login Sukses! Selamat datang, " << currentUser << " (" << currentRole << ")\n"; 
+            pauseLayar();
+            clearScreen();
+            return;
+        }
+    }
+    cout << "Login Gagal! Username atau password salah.\n";
+    pauseLayar();
+    clearScreen();
+}
+
+void registerAkun() {
+    clearScreen();
+    string user, pass, role, lokasi, spesialisasi;
+    while (true) {
+        cout << "\n--- FORM REGISTRASI ---\n";
+        cout << "Username: "; cin >> user;
+
+        if (usernameExists(user)) {
+            cout << "Username '" << user << "' sudah terdaftar. Silakan pilih username lain.\n";
+            pauseLayar();
+            clearScreen();
+        } else {
+            break;
+        }
+    }
+
+    cout << "Password: "; cin >> pass;
+    cout << "Role (1.Pelanggan/2.Cleaner): "; cin >> role;
+    
+    if (role == "2") {
+        role = "cleaner";
+        cout << "Lokasi: "; cin >> lokasi;
+        cout << "Spesialisasi: "; cin >> spesialisasi;
+        dbAkun[jmlAkun++] = {user, pass, role, lokasi, spesialisasi, 0};
+    } else if (role == "1") {
+        role = "pelanggan";
+        dbAkun[jmlAkun++] = {user, pass, role, "", "", 0};
+    } else {
+        cout << "Role tidak valid!\n";
+        pauseLayar();
+        clearScreen();
+        return;
+    }
+    
+    cout << "Registrasi berhasil! Silakan login.\n";
+    pauseLayar();
+    clearScreen();
+}
+
+
 void inputOrderJasa() {
     clearScreen();
     if (jmlPesanan < 10) {
@@ -98,7 +140,7 @@ void lihatPesanan() {
 }
 
 void updateProgressKerja() {
-    int idPesanan; string statusBaru;
+    int idPesanan; string statusBaru, konfirmasi;
     clearScreen();
     cout << "\n--- UPDATE PROGRESS ---\n";
     cout << "ID Pesanan: "; cin >> idPesanan;
@@ -109,8 +151,14 @@ void updateProgressKerja() {
     
     for (int i = 0; i < jmlPesanan; i++) {
         if (dbPesanan[i].id == idPesanan) { 
-            dbPesanan[i].status = statusBaru; 
-            cout << "[CRUD] Progress ID " << idPesanan << " diupdate ke: " << statusBaru << "\n"; 
+            cout << "Yakin ingin mengubah status pesanan ID " << idPesanan << " menjadi '" << statusBaru << "'? (y/n): ";
+            cin >> konfirmasi;
+            if (konfirmasi == "y" || konfirmasi == "Y") {
+                dbPesanan[i].status = statusBaru; 
+                cout << "[CRUD] Progress ID " << idPesanan << " diupdate ke: " << statusBaru << "\n"; 
+            } else {
+                cout << "Update dibatalkan.\n";
+            }
             return; 
         }
     }
@@ -118,51 +166,30 @@ void updateProgressKerja() {
 }
 
 void deleteBooking() {
-    int idPesanan;
+    int idPesanan; string konfirmasi;
     clearScreen();
     cout << "\n--- HAPUS BOOKING ---\n";
     cout << "Masukkan ID Booking yang dihapus: "; cin >> idPesanan;
     
     for (int i = 0; i < jmlPesanan; i++) {
         if (dbPesanan[i].id == idPesanan) {
-            for (int j = i; j < jmlPesanan - 1; j++) {
-                dbPesanan[j] = dbPesanan[j + 1];
+            cout << "Yakin ingin menghapus booking ID " << idPesanan << "? (y/n): ";
+            cin >> konfirmasi;
+            if (konfirmasi == "y" || konfirmasi == "Y") {
+                for (int j = i; j < jmlPesanan - 1; j++) {
+                    dbPesanan[j] = dbPesanan[j + 1];
+                }
+                jmlPesanan--;
+                cout << "[CRUD] Booking ID " << idPesanan << " berhasil dihapus!\n";
+            } else {
+                cout << "Penghapusan dibatalkan.\n";
             }
-            jmlPesanan--;
-            cout << "[CRUD] Booking ID " << idPesanan << " berhasil dihapus!\n";
             return;
         }
     }
     cout << "Booking tidak ditemukan.\n";
 }
 
-
-
-
-//update void cariCleaner ----------------------------
-int seqSearchRating(int idx[], int n, float minRating, int temp[]) {
-    int jumlah = 0;
-    bool isktm = false; 
-    for (int i = 0; i < n; i++) {
-        if (dbAkun[idx[i]].rating >= minRating) {
-            isktm      = true;
-            temp[jumlah++] = idx[i];
-        }
-    }
-    return isktm ? jumlah : 0;
-}
- 
-int seqSearchLokasi(int idx[], int n, string kota, int temp[]) {
-    int jumlah = 0;
-    bool isktm = false;
-    for (int i = 0; i < n; i++) {
-        if (textFix(dbAkun[idx[i]].lokasi, kota)) {
-            isktm          = true;
-            temp[jumlah++] = idx[i];
-        }
-    }
-    return isktm ? jumlah : 0;
-}
 
 void tampilHasilCleaner(int idx[], int n) {
     if (n == 0) { cout << "Tidak ada cleaner yang sesuai.\n"; return; }
@@ -180,7 +207,6 @@ void cariCleaner() {
     cout << "\n--- CARI CLEANER ---\n";
     cout << "1. Berdasarkan rating minimum\n";
     cout << "2. Berdasarkan lokasi\n";
-    cout << "3. Berdasarkan jenis jasa\n";
     cout << "0. Kembali\n";
     cout << "Pilih: "; cin >> pilihan;
 
@@ -216,12 +242,6 @@ void cariCleaner() {
 
     tampilHasilCleaner(hasil, jumlahHasil);
 }
-//=====================================================
-
-
-
-
-
 
 void cetakKuitansi() {
     clearScreen();
@@ -290,6 +310,7 @@ int main() {
         while (currentUser == "") {
             cout << "\n=== APLIKASI CLEANING SERVICE ===\n";
             cout << "1. Login\n";
+            cout << "2. Registrasi\n";
             cout << "0. Keluar Program\n";
             cout << "Pilih menu: ";
             cin >> pilihan;
@@ -297,6 +318,9 @@ int main() {
             switch(pilihan) {
                 case 1: 
                     login(); 
+                    break;
+                case 2: 
+                    registerAkun(); 
                     break;
                 case 0: 
                     cout << "Keluar dari program...\n"; 
