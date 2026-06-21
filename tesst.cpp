@@ -2,6 +2,7 @@
 #include <string>
 #include <fstream>
 #include <cstdlib>
+#include <cctype>
 #include <chrono>
 #include <thread>
 #include <limits>
@@ -46,18 +47,16 @@ string currentUser = "";
 string currentRole = "";
 
 void pauseLayar() {
-    cout << "\nTekan Enter untuk lanjut...";
+    system("pause");
     cin.clear();
-    if (cin.rdbuf()->in_avail() > 0) {
-        cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    }
-    cin.get();
+    
 }
 
-bool textFix(string teks, string keyword) {
-    for (char& c : teks)    c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
-    for (char& c : keyword) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
-    return teks.find(keyword) != string::npos;
+string toLower(string teks) {
+    for (char& c : teks) {
+        c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+    }
+    return teks;
 }
 
 bool usernameExists(const string& user) {
@@ -69,16 +68,25 @@ bool usernameExists(const string& user) {
     return false;
 }
 
+int cariIndexAkun(const string& username) {
+    for (int i = 0; i < jmlAkun; i++) {
+        if (dbAkun[i].username == username) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 bool readInt(const string& prompt, int& value) {
     cout << prompt;
 
     if (cin >> value) {
-        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cin.ignore(1000, '\n');
         return true;
     }
 
     cin.clear();
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    cin.ignore(1000, '\n');
     return false;
 }
 
@@ -114,8 +122,9 @@ bool pilihJasa(int pilihan, string& namaJasa, string& spesialisasi) {
 }
 
 int cariIndexSpesialisasi(const Akun& akun, const string& spesialisasi) {
+    string spesialisasiLower = toLower(spesialisasi);
     for (int i = 0; i < akun.jmlSpesialisasi; i++) {
-        if (textFix(akun.spesialisasi[i], spesialisasi)) {
+        if (toLower(akun.spesialisasi[i]) == spesialisasiLower) {
             return i;
         }
     }
@@ -216,9 +225,6 @@ void registerAkun() {
     clearScreen();
 }
 
-
-
-
 void lihatPesanan() {
     clearScreen();
     cout << "\n--- DAFTAR PESANAN ---\n";
@@ -234,6 +240,168 @@ void lihatPesanan() {
         << " | Biaya: Rp" << dbPesanan[i].biaya << "\n";
     }
     pauseLayar();
+}
+
+void lihatpesananCleaner() {
+    clearScreen();
+    cout << "\n--- DAFTAR PESANAN ---\n";
+    bool adaPesanan = false;
+    for (int i = 0; i < jmlPesanan; i++) {
+        if (dbPesanan[i].cleaner == currentUser) {
+            adaPesanan = true;
+            cout << "ID: " << dbPesanan[i].id
+            << " | Pelanggan: " << dbPesanan[i].pelanggan
+            << " | Jasa: " << dbPesanan[i].jasa
+            << " | Status: " << dbPesanan[i].status
+            << " | Durasi: " << dbPesanan[i].durasi << " jam"
+            << " | Harga/Jam: Rp" << dbPesanan[i].biayaPerJam
+            << " | Biaya: Rp" << dbPesanan[i].biaya << "\n";
+        }
+    }
+    if (!adaPesanan) {
+        cout << "Belum ada pesanan untuk Anda.\n";
+    }
+    pauseLayar();
+}
+
+void tampilSpesialisasiCleaner(const Akun& cleaner) {
+    if (cleaner.jmlSpesialisasi == 0) {
+        cout << "Belum ada spesialisasi.\n";
+        return;
+    }
+
+    for (int i = 0; i < cleaner.jmlSpesialisasi; i++) {
+        cout << i + 1 << ". " << cleaner.spesialisasi[i]
+             << " | Harga/Jam: Rp" << cleaner.hargaPerJam[i] << "\n";
+    }
+}
+
+void updateJasa() {
+    int indexAkun = cariIndexAkun(currentUser);
+    if (indexAkun == -1 || dbAkun[indexAkun].role != "cleaner") {
+        cout << "Akun cleaner tidak ditemukan.\n";
+        pauseLayar();
+        return;
+    }
+
+    Akun& cleaner = dbAkun[indexAkun];
+    int pilihan;
+
+    while (true) {
+        clearScreen();
+        cout << "\n--- UPDATE JASA ---\n";
+        cout << "Cleaner: " << cleaner.username << "\n";
+        cout << "Lokasi: " << cleaner.lokasi << "\n\n";
+        tampilSpesialisasiCleaner(cleaner);
+        cout << "\n1. Tambah spesialisasi\n";
+        cout << "2. Hapus spesialisasi\n";
+        cout << "3. Edit harga jasa\n";
+        cout << "0. Kembali\n";
+
+        if (!readInt("Pilih: ", pilihan)) {
+            cout << "Pilihan tidak valid! Harap masukkan angka.\n";
+            pauseLayar();
+            continue;
+        }
+
+        if (pilihan == 0) {
+            return;
+        }
+
+        if (pilihan == 1) {
+            if (cleaner.jmlSpesialisasi >= MAX_SPESIALISASI) {
+                cout << "Spesialisasi sudah penuh. Maksimal " << MAX_SPESIALISASI << ".\n";
+                pauseLayar();
+                continue;
+            }
+
+            int pilihanJasa, harga;
+            string namaJasa, spesialisasiDipilih;
+
+            cout << "\nPilih spesialisasi baru:\n";
+            tampilMenuJasa();
+            if (!readInt("Pilihan: ", pilihanJasa) || pilihanJasa == 0) {
+                cout << "Tambah spesialisasi dibatalkan.\n";
+                pauseLayar();
+                continue;
+            }
+
+            if (!pilihJasa(pilihanJasa, namaJasa, spesialisasiDipilih)) {
+                cout << "Pilihan jasa tidak valid.\n";
+                pauseLayar();
+                continue;
+            }
+
+            if (cariIndexSpesialisasi(cleaner, spesialisasiDipilih) != -1) {
+                cout << "Spesialisasi ini sudah ada.\n";
+                pauseLayar();
+                continue;
+            }
+
+            if (!readInt("Harga per jam: Rp", harga) || harga <= 0) {
+                cout << "Harga tidak valid.\n";
+                pauseLayar();
+                continue;
+            }
+
+            cleaner.spesialisasi[cleaner.jmlSpesialisasi] = spesialisasiDipilih;
+            cleaner.hargaPerJam[cleaner.jmlSpesialisasi] = harga;
+            cleaner.jmlSpesialisasi++;
+            cout << "Spesialisasi " << namaJasa << " berhasil ditambahkan.\n";
+            pauseLayar();
+        } else if (pilihan == 2) {
+            if (cleaner.jmlSpesialisasi == 0) {
+                cout << "Tidak ada spesialisasi untuk dihapus.\n";
+                pauseLayar();
+                continue;
+            }
+
+            int nomor;
+            if (!readInt("Nomor spesialisasi yang dihapus: ", nomor) || nomor < 1 || nomor > cleaner.jmlSpesialisasi) {
+                cout << "Nomor spesialisasi tidak valid.\n";
+                pauseLayar();
+                continue;
+            }
+
+            int indexHapus = nomor - 1;
+            string spesialisasiHapus = cleaner.spesialisasi[indexHapus];
+            for (int i = indexHapus; i < cleaner.jmlSpesialisasi - 1; i++) {
+                cleaner.spesialisasi[i] = cleaner.spesialisasi[i + 1];
+                cleaner.hargaPerJam[i] = cleaner.hargaPerJam[i + 1];
+            }
+            cleaner.jmlSpesialisasi--;
+            cleaner.spesialisasi[cleaner.jmlSpesialisasi] = "";
+            cleaner.hargaPerJam[cleaner.jmlSpesialisasi] = 0;
+            cout << "Spesialisasi " << spesialisasiHapus << " berhasil dihapus.\n";
+            pauseLayar();
+        } else if (pilihan == 3) {
+            if (cleaner.jmlSpesialisasi == 0) {
+                cout << "Tidak ada spesialisasi untuk diedit.\n";
+                pauseLayar();
+                continue;
+            }
+
+            int nomor, hargaBaru;
+            if (!readInt("Nomor spesialisasi yang diedit: ", nomor) || nomor < 1 || nomor > cleaner.jmlSpesialisasi) {
+                cout << "Nomor spesialisasi tidak valid.\n";
+                pauseLayar();
+                continue;
+            }
+
+            if (!readInt("Harga baru per jam: Rp", hargaBaru) || hargaBaru <= 0) {
+                cout << "Harga tidak valid.\n";
+                pauseLayar();
+                continue;
+            }
+
+            cleaner.hargaPerJam[nomor - 1] = hargaBaru;
+            cout << "Harga " << cleaner.spesialisasi[nomor - 1] << " berhasil diubah menjadi Rp" << hargaBaru << ".\n";
+            pauseLayar();
+        } else {
+            cout << "Pilihan tidak valid.\n";
+            pauseLayar();
+        }
+    }
 }
 
 void updateProgressKerja() {
@@ -252,7 +420,11 @@ void updateProgressKerja() {
             cin >> konfirmasi;
             if (konfirmasi == "y" || konfirmasi == "Y") {
                 dbPesanan[i].status = statusBaru; 
-                cout << "[CRUD] Progress ID " << idPesanan << " diupdate ke: " << statusBaru << "\n"; 
+                cout << "[CRUD] Progress ID " << idPesanan << " diupdate ke: " << statusBaru << "\n";
+                cout << "\n========== PROSES UPDATE SELESAI ==========\n";
+                cout << "ID Pesanan: " << idPesanan << "\n";
+                cout << "Status Baru: " << dbPesanan[i].status << "\n";
+                cout << "==========================================\n";
             } else {
                 cout << "Update dibatalkan.\n";
             }
@@ -289,6 +461,7 @@ void deleteBooking() {
 
 
 void tampilHasilCleaner(int idx[], int n) {
+    clearScreen();
     if (n == 0) { cout << "Tidak ada cleaner yang sesuai.\n"; return; }
     cout << "\n--- HASIL PENCARIAN ---\n";
     for (int i = 0; i < n; i++) {
@@ -399,25 +572,26 @@ void cariCleaner() {
     if (pilihan == 1) 
     {
         float minRating;
-        cout << "Rating minimum (contoh: 4.0): "; cin >> minRating;
-        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "Rating minimum (0.0 - 5.0): "; cin >> minRating;
+        cin.ignore(1000, '\n');
         for (int i = 0; i < jmlAkun; i++) {
             if (dbAkun[i].role == "cleaner" && dbAkun[i].rating >= minRating && spesialisasiSesuai(dbAkun[i]))
             hasil[jumlahHasil++] = i;
         }
-        
     } 
     
     else if (pilihan == 2) 
     {
         string kota;
         cout << "Nama kota: "; cin >> kota;
-        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cin.ignore(1000, '\n');
+        string kotaLower = toLower(kota);
         for (int i = 0; i < jmlAkun; i++) 
         {
-            if (dbAkun[i].role == "cleaner" && dbAkun[i].lokasi == kota && spesialisasiSesuai(dbAkun[i]))
+            if (dbAkun[i].role == "cleaner" && toLower(dbAkun[i].lokasi) == kotaLower && spesialisasiSesuai(dbAkun[i]))
             hasil[jumlahHasil++] = i;
         }
+        
         
     } 
     else if (pilihan == 0) {
@@ -430,6 +604,7 @@ void cariCleaner() {
     tampilHasilCleaner(hasil, jumlahHasil);
     buatPesananDariHasil(hasil, jumlahHasil);
     pauseLayar();
+    clearScreen();
 }
 
 void inputOrderJasa() {
@@ -461,7 +636,44 @@ void inputOrderJasa() {
 }
 void cetakKuitansi() {
     clearScreen();
+    int idPesanan;
+    int indexPesanan = -1;
+
+    if (jmlPesanan == 0) {
+        cout << "Belum ada transaksi untuk dicetak.\n";
+        pauseLayar();
+        clearScreen();
+        return;
+    }
+    cout << "\n--- CETAK KUITANSI ---\n";
+
+    if (!readInt("Masukkan ID Pesanan yang ingin dicetak: ", idPesanan)) {
+        cout << "ID tidak valid! Harap masukkan angka.\n";
+        pauseLayar();
+        return;
+    }
+
+    for (int i = 0; i < jmlPesanan; i++) {
+        if (dbPesanan[i].id == idPesanan) {
+            indexPesanan = i;
+            break;
+        }
+    }
+
+    if (indexPesanan == -1) {
+        cout << "Pesanan tidak ditemukan.\n";
+        pauseLayar();
+        return;
+    }
+
+    if (toLower(dbPesanan[indexPesanan].status) != "selesai") {
+        cout << "Kuitansi hanya bisa dicetak jika status pesanan sudah Selesai.\n";
+        cout << "Status pesanan saat ini: " << dbPesanan[indexPesanan].status << "\n";
+        pauseLayar();
+        return;
+    }
     ofstream fileHTML("Kuitansi.html");
+    
     
     if (fileHTML.is_open()) {
         fileHTML << "<!DOCTYPE html>\n";
@@ -483,25 +695,18 @@ void cetakKuitansi() {
         fileHTML << "<table>\n";
         fileHTML << "<tr><th>ID</th><th>Pelanggan</th><th>Cleaner</th><th>Jasa</th><th>Status</th><th>Harga/Jam</th><th>Biaya</th><th>Durasi</th></tr>\n";
         
-        if (jmlPesanan == 0) {
-            fileHTML << "<tr><td colspan='8' style='text-align:center;'>Belum ada transaksi.</td></tr>\n";
-        } else {
-            int totalBiaya = 0;
-            for (int i = 0; i < jmlPesanan; i++) {
-                fileHTML << "<tr>\n";
-                fileHTML << "<td>" << dbPesanan[i].id << "</td>\n";
-                fileHTML << "<td>" << dbPesanan[i].pelanggan << "</td>\n";
-                fileHTML << "<td>" << (dbPesanan[i].cleaner.empty() ? "-" : dbPesanan[i].cleaner) << "</td>\n";
-                fileHTML << "<td>" << dbPesanan[i].jasa << "</td>\n";
-                fileHTML << "<td>" << dbPesanan[i].status << "</td>\n";
-                fileHTML << "<td>Rp" << dbPesanan[i].biayaPerJam << "</td>\n";
-                fileHTML << "<td>Rp" << dbPesanan[i].biaya << "</td>\n";
-                fileHTML << "<td>" << dbPesanan[i].durasi << " jam</td>\n";
-                fileHTML << "</tr>\n";
-                totalBiaya += dbPesanan[i].biaya;
-            }
-            fileHTML << "<tr><th colspan='6'>TOTAL</th><th>Rp" << totalBiaya << "</th><th></th></tr>\n";
-        }
+        Pesanan& pesanan = dbPesanan[indexPesanan];
+        fileHTML << "<tr>\n";
+        fileHTML << "<td>" << pesanan.id << "</td>\n";
+        fileHTML << "<td>" << pesanan.pelanggan << "</td>\n";
+        fileHTML << "<td>" << (pesanan.cleaner.empty() ? "-" : pesanan.cleaner) << "</td>\n";
+        fileHTML << "<td>" << pesanan.jasa << "</td>\n";
+        fileHTML << "<td>" << pesanan.status << "</td>\n";
+        fileHTML << "<td>Rp" << pesanan.biayaPerJam << "</td>\n";
+        fileHTML << "<td>Rp" << pesanan.biaya << "</td>\n";
+        fileHTML << "<td>" << pesanan.durasi << " jam</td>\n";
+        fileHTML << "</tr>\n";
+        fileHTML << "<tr><th colspan='6'>TOTAL</th><th>Rp" << pesanan.biaya << "</th><th></th></tr>\n";
         
         fileHTML << "</table>\n";
         fileHTML << "</body>\n";
@@ -523,6 +728,7 @@ void cetakKuitansi() {
 }
 
 int main() {
+    clearScreen();
     int pilihan;
     while (true) {
         while (currentUser == "") {
@@ -554,7 +760,7 @@ int main() {
         {
             if (currentRole == "pelanggan") 
             {
-                // clearScreen();
+                clearScreen();
                 cout << "\n=== MENU UTAMA (" << currentRole << ") ===\n";
                 cout << "1. Order Jasa (Input)\n";
                 cout << "2. Lihat Progress Kerja\n";
@@ -590,6 +796,9 @@ int main() {
                     clearScreen();
                     cout << "\n=== MENU UTAMA (" << currentRole << ") ===\n";
                     cout << "1. Update Progress Kerja\n";
+                    cout << "2. Lihat List Pesanan\n";
+                    cout << "3. Cetak Kuitansi\n";
+                    cout << "4. Update Jasa\n";
                     cout << "0. Logout\n";
                     if (!readInt("Pilih menu: ", pilihan)) {
                         cout << "Pilihan tidak valid! Harap masukkan angka.\n";
@@ -599,6 +808,9 @@ int main() {
                     switch(pilihan) 
                     {
                         case 1: updateProgressKerja(); break;
+                        case 2: lihatpesananCleaner(); break;
+                        case 3: cetakKuitansi(); break;
+                        case 4: updateJasa(); break;
                         case 0: 
                             cout << "Logout berhasil...\n"; 
                             currentUser = ""; 
