@@ -6,6 +6,7 @@
 #include <chrono>
 #include <thread>
 #include <limits>
+#include <vector>
 #include <conio.h>
 #include <iomanip>
 using namespace std;
@@ -101,6 +102,77 @@ bool bolehAksesPesanan(const Pesanan& pesanan) {
 
     return false;
 }
+
+vector<size_t> hitungLebarKolom(const vector<string>& headers, const vector<vector<string>>& rows) {
+    vector<size_t> widths(headers.size());
+    for (size_t i = 0; i < headers.size(); i++) {
+        widths[i] = headers[i].length();
+    }
+
+    for (const auto& row : rows) {
+        for (size_t i = 0; i < row.size(); i++) {
+            widths[i] = max(widths[i], row[i].length());
+        }
+    }
+
+    return widths;
+}
+
+void cetakGarisBatas(const vector<size_t>& widths) {
+    cout << "+";
+    for (size_t width : widths) {
+        cout << string(static_cast<int>(width + 2), '-') << "+";
+    }
+    cout << "\n";
+}
+
+void cetakBaris(const vector<string>& cells, const vector<size_t>& widths) {
+    cout << "|";
+    for (size_t i = 0; i < cells.size(); i++) {
+        cout << " " << left << setw(static_cast<int>(widths[i])) << cells[i] << " |";
+    }
+    cout << "\n";
+}
+
+void tampilTabel(const vector<string>& headers, const vector<vector<string>>& rows) {
+    if (headers.empty()) {
+        return;
+    }
+
+    vector<size_t> widths = hitungLebarKolom(headers, rows);
+    cetakGarisBatas(widths);
+    cetakBaris(headers, widths);
+    cetakGarisBatas(widths);
+
+    for (const auto& row : rows) {
+        cetakBaris(row, widths);
+    }
+
+    cetakGarisBatas(widths);
+}
+
+void tampilTabelPesanan(const int indices[], int count) {
+    vector<string> headers = {"ID", "Pelanggan", "Cleaner", "Jasa", "Status", "Durasi", "Harga/Jam", "Biaya"};
+    vector<vector<string>> rows;
+    rows.reserve(count);
+
+    for (int i = 0; i < count; i++) {
+        const Pesanan& p = dbPesanan[indices[i]];
+        rows.push_back({
+            to_string(p.id),
+            p.pelanggan,
+            p.cleaner,
+            p.jasa,
+            p.status,
+            to_string(p.durasi) + " jam",
+            string("Rp") + to_string(p.biayaPerJam),
+            string("Rp") + to_string(p.biaya)
+        });
+    }
+
+    tampilTabel(headers, rows);
+}
+
 
 void tampilMenuJasa() {
     cout << "1. Bersih Rumah Reguler(sebagian)\n";
@@ -240,46 +312,40 @@ void registerAkun() {
 void lihatPesanan() {
     clearScreen();
     cout << "\n--- DAFTAR PESANAN ---\n";
-    bool adaPesanan = false;
-    for (int i = 0; i < jmlPesanan; i++) {
-        if (!bolehAksesPesanan(dbPesanan[i])) {
-            continue;
-        }
+    int indices[10];
+    int count = 0;
 
-        adaPesanan = true;
-        cout << "ID: " << dbPesanan[i].id
-        << " | Pelanggan: " << dbPesanan[i].pelanggan
-        << " | Cleaner: " << dbPesanan[i].cleaner
-        << " | Jasa: " << dbPesanan[i].jasa
-        << " | Status: " << dbPesanan[i].status
-        << " | Durasi: " << dbPesanan[i].durasi << " jam"
-        << " | Harga/Jam: Rp" << dbPesanan[i].biayaPerJam
-        << " | Biaya: Rp" << dbPesanan[i].biaya << "\n";
+    for (int i = 0; i < jmlPesanan; i++) {
+        if (bolehAksesPesanan(dbPesanan[i])) {
+            indices[count++] = i;
+        }
     }
-    if (!adaPesanan) {
+
+    if (count == 0) {
         cout << "Belum ada pesanan.\n";
+    } else {
+        tampilTabelPesanan(indices, count);
     }
+
     pauseLayar();
 }
 
 void lihatpesananCleaner() {
     clearScreen();
     cout << "\n--- DAFTAR PESANAN ---\n";
-    bool adaPesanan = false;
+    int indices[10];
+    int count = 0;
+
     for (int i = 0; i < jmlPesanan; i++) {
         if (dbPesanan[i].cleaner == currentUser) {
-            adaPesanan = true;
-            cout << "ID: " << dbPesanan[i].id
-            << " | Pelanggan: " << dbPesanan[i].pelanggan
-            << " | Jasa: " << dbPesanan[i].jasa
-            << " | Status: " << dbPesanan[i].status
-            << " | Durasi: " << dbPesanan[i].durasi << " jam"
-            << " | Harga/Jam: Rp" << dbPesanan[i].biayaPerJam
-            << " | Biaya: Rp" << dbPesanan[i].biaya << "\n";
+            indices[count++] = i;
         }
     }
-    if (!adaPesanan) {
+
+    if (count == 0) {
         cout << "belum ada pesanan\n";
+    } else {
+        tampilTabelPesanan(indices, count);
     }
     pauseLayar();
 }
@@ -921,6 +987,7 @@ int main() {
                     }
                 }
         }
+        
     }
 
     return 0;
