@@ -6,14 +6,15 @@
 #include <chrono>
 #include <thread>
 #include <limits>
+#include <vector>
 #include <conio.h>
-
+#include <iomanip>
 using namespace std;
 
 const int MAX_SPESIALISASI = 4;
 
 struct Akun {
-    string username, password, role, lokasi;
+    string username, password, role, lokasi, region;
     string spesialisasi[MAX_SPESIALISASI];
     int hargaPerJam[MAX_SPESIALISASI];
     int jmlSpesialisasi;
@@ -22,17 +23,17 @@ struct Akun {
 
 struct Pesanan {
     int id;
-    string pelanggan, cleaner, jasa, status;
-    int biayaPerJam, biaya, durasi;
+    string pelanggan, cleaner, jasa, status, petugas;
+    int biayaPerJam, biaya, durasi, bayar, kembalian;
 };
 
 Akun dbAkun[100] = {
     {"pelanggan1", "123", "pelanggan", "Bekasi", {}, {}, 0, 0}, 
     {"p", "1", "pelanggan", "Bekasi", {}, {}, 0, 0}, 
-    {"c", "1", "cleaner", "Bekasi", {"regular", "deep clean"}, {60000, 100000}, 2, 4.5},
-    {"mitra2", "123", "cleaner", "Jakarta", {"deep clean", "carpet cleaning"}, {90000, 50000}, 2, 3.5},
-    {"mitra3", "123", "cleaner", "Bandung", {"carpet cleaning", "mattress cleaning"}, {45000, 70000}, 2, 1.5},
-    {"mitra4", "123", "cleaner", "Bekasi", {"mattress cleaning", "regular"}, {75000, 55000}, 2, 2.0}
+    {"c", "1", "cleaner", "Bekasi", "jawabarat", {"regular", "deep clean"}, {60000, 100000}, 2, 4.5},
+    {"mitra2", "123", "cleaner", "Mojokerto", "jawatengah", {"deep clean", "carpet cleaning"}, {90000, 50000}, 2, 3.5},
+    {"mitra3", "123", "cleaner", "Surabaya", "jawatimur", {"carpet cleaning", "mattress cleaning"}, {45000, 70000}, 2, 1.5},
+    {"mitra4", "123", "cleaner", "jakarta", "jakarta", {"mattress cleaning", "regular"}, {75000, 55000}, 2, 2.0}
 };
 //globall variable
 string jasa_yang_dipilih; 
@@ -89,6 +90,89 @@ bool readInt(const string& prompt, int& value) {
     cin.ignore(1000, '\n');
     return false;
 }
+
+bool bolehAksesPesanan(const Pesanan& pesanan) {
+    if (currentRole == "pelanggan") {
+        return pesanan.pelanggan == currentUser;
+    }
+
+    if (currentRole == "cleaner") {
+        return pesanan.cleaner == currentUser;
+    }
+
+    return false;
+}
+
+vector<size_t> hitungLebarKolom(const vector<string>& headers, const vector<vector<string>>& rows) {
+    vector<size_t> widths(headers.size());
+    for (size_t i = 0; i < headers.size(); i++) {
+        widths[i] = headers[i].length();
+    }
+
+    for (const auto& row : rows) {
+        for (size_t i = 0; i < row.size(); i++) {
+            widths[i] = max(widths[i], row[i].length());
+        }
+    }
+
+    return widths;
+}
+
+void cetakGarisBatas(const vector<size_t>& widths) {
+    cout << "+";
+    for (size_t width : widths) {
+        cout << string(static_cast<int>(width + 2), '-') << "+";
+    }
+    cout << "\n";
+}
+
+void cetakBaris(const vector<string>& cells, const vector<size_t>& widths) {
+    cout << "|";
+    for (size_t i = 0; i < cells.size(); i++) {
+        cout << " " << left << setw(static_cast<int>(widths[i])) << cells[i] << " |";
+    }
+    cout << "\n";
+}
+
+void tampilTabel(const vector<string>& headers, const vector<vector<string>>& rows) {
+    if (headers.empty()) {
+        return;
+    }
+
+    vector<size_t> widths = hitungLebarKolom(headers, rows);
+    cetakGarisBatas(widths);
+    cetakBaris(headers, widths);
+    cetakGarisBatas(widths);
+
+    for (const auto& row : rows) {
+        cetakBaris(row, widths);
+    }
+
+    cetakGarisBatas(widths);
+}
+
+void tampilTabelPesanan(const int indices[], int count) {
+    vector<string> headers = {"ID", "Pelanggan", "Cleaner", "Jasa", "Status", "Durasi", "Harga/Jam", "Biaya"};
+    vector<vector<string>> rows;
+    rows.reserve(count);
+
+    for (int i = 0; i < count; i++) {
+        const Pesanan& p = dbPesanan[indices[i]];
+        rows.push_back({
+            to_string(p.id),
+            p.pelanggan,
+            p.cleaner,
+            p.jasa,
+            p.status,
+            to_string(p.durasi) + " jam",
+            string("Rp") + to_string(p.biayaPerJam),
+            string("Rp") + to_string(p.biaya)
+        });
+    }
+
+    tampilTabel(headers, rows);
+}
+
 
 void tampilMenuJasa() {
     cout << "1. Bersih Rumah Reguler(sebagian)\n";
@@ -228,38 +312,40 @@ void registerAkun() {
 void lihatPesanan() {
     clearScreen();
     cout << "\n--- DAFTAR PESANAN ---\n";
-    if (jmlPesanan == 0) { cout << "Belum ada pesanan.\n"; return; }
+    int indices[10];
+    int count = 0;
+
     for (int i = 0; i < jmlPesanan; i++) {
-        cout << "ID: " << dbPesanan[i].id
-        << " | Pelanggan: " << dbPesanan[i].pelanggan
-        << " | Cleaner: " << dbPesanan[i].cleaner
-        << " | Jasa: " << dbPesanan[i].jasa
-        << " | Status: " << dbPesanan[i].status
-        << " | Durasi: " << dbPesanan[i].durasi << " jam"
-        << " | Harga/Jam: Rp" << dbPesanan[i].biayaPerJam
-        << " | Biaya: Rp" << dbPesanan[i].biaya << "\n";
+        if (bolehAksesPesanan(dbPesanan[i])) {
+            indices[count++] = i;
+        }
     }
+
+    if (count == 0) {
+        cout << "Belum ada pesanan.\n";
+    } else {
+        tampilTabelPesanan(indices, count);
+    }
+
     pauseLayar();
 }
 
 void lihatpesananCleaner() {
     clearScreen();
     cout << "\n--- DAFTAR PESANAN ---\n";
-    bool adaPesanan = false;
+    int indices[10];
+    int count = 0;
+
     for (int i = 0; i < jmlPesanan; i++) {
         if (dbPesanan[i].cleaner == currentUser) {
-            adaPesanan = true;
-            cout << "ID: " << dbPesanan[i].id
-            << " | Pelanggan: " << dbPesanan[i].pelanggan
-            << " | Jasa: " << dbPesanan[i].jasa
-            << " | Status: " << dbPesanan[i].status
-            << " | Durasi: " << dbPesanan[i].durasi << " jam"
-            << " | Harga/Jam: Rp" << dbPesanan[i].biayaPerJam
-            << " | Biaya: Rp" << dbPesanan[i].biaya << "\n";
+            indices[count++] = i;
         }
     }
-    if (!adaPesanan) {
-        cout << "Belum ada pesanan untuk Anda.\n";
+
+    if (count == 0) {
+        cout << "belum ada pesanan\n";
+    } else {
+        tampilTabelPesanan(indices, count);
     }
     pauseLayar();
 }
@@ -405,25 +491,62 @@ void updateJasa() {
 }
 
 void updateProgressKerja() {
-    int idPesanan; string statusBaru, konfirmasi;
+    int idPesanan; string statusBaru, konfirmasi, petugas;
     clearScreen();
+    cout << "\n--- DAFTAR PESANAN ---\n";
+    bool adaPesanan = false;
+    for (int i = 0; i < jmlPesanan; i++) {
+        if (dbPesanan[i].cleaner == currentUser) {
+            adaPesanan = true;
+            cout << "ID: " << dbPesanan[i].id
+            << " | Pelanggan: " << dbPesanan[i].pelanggan
+            << " | Jasa: " << dbPesanan[i].jasa
+            << " | Status: " << dbPesanan[i].status
+            << " | Durasi: " << dbPesanan[i].durasi << " jam"
+            << " | Harga/Jam: Rp" << dbPesanan[i].biayaPerJam
+            << " | Biaya: Rp" << dbPesanan[i].biaya << "\n";
+        }
+    }
+    if (!adaPesanan) {
+        cout << "belum ada pesanan\n";
+    }
     cout << "\n--- UPDATE PROGRESS ---\n";
+
+    adaPesanan = false;
+    for (int i = 0; i < jmlPesanan; i++) {
+        if (bolehAksesPesanan(dbPesanan[i])) {
+            adaPesanan = true;
+            break;
+        }
+    }
+
+    if (!adaPesanan) {
+        cout << "belum ada pesanan\n";
+        pauseLayar();
+        return;
+    }
+
     cout << "ID Pesanan: "; cin >> idPesanan;
     if (idPesanan == 0) {
         return;
     }
     cout << "Status Baru (misal: Selesai): "; cin >> statusBaru;
+    cin.ignore(1000, '\n');
+    cout << "Nama Petugas: "; getline(cin, petugas);
     
     for (int i = 0; i < jmlPesanan; i++) {
-        if (dbPesanan[i].id == idPesanan) { 
+        if (dbPesanan[i].id == idPesanan && bolehAksesPesanan(dbPesanan[i])) { 
             cout << "Yakin ingin mengubah status pesanan ID " << idPesanan << " menjadi '" << statusBaru << "'? (y/n): ";
-            cin >> konfirmasi;
-            if (konfirmasi == "y" || konfirmasi == "Y") {
-                dbPesanan[i].status = statusBaru; 
+            string konfirmasiInput;
+            getline(cin, konfirmasiInput);
+            if (konfirmasiInput == "y" || konfirmasiInput == "Y") {
+                dbPesanan[i].status = statusBaru;
+                dbPesanan[i].petugas = petugas;
                 cout << "[CRUD] Progress ID " << idPesanan << " diupdate ke: " << statusBaru << "\n";
                 cout << "\n========== PROSES UPDATE SELESAI ==========\n";
                 cout << "ID Pesanan: " << idPesanan << "\n";
                 cout << "Status Baru: " << dbPesanan[i].status << "\n";
+                cout << "Petugas: " << dbPesanan[i].petugas << "\n";
                 cout << "==========================================\n";
             } else {
                 cout << "Update dibatalkan.\n";
@@ -441,7 +564,7 @@ void deleteBooking() {
     cout << "Masukkan ID Booking yang dihapus: "; cin >> idPesanan;
     
     for (int i = 0; i < jmlPesanan; i++) {
-        if (dbPesanan[i].id == idPesanan) {
+        if (dbPesanan[i].id == idPesanan && bolehAksesPesanan(dbPesanan[i])) {
             cout << "Yakin ingin menghapus booking ID " << idPesanan << "? (y/n): ";
             cin >> konfirmasi;
             if (konfirmasi == "y" || konfirmasi == "Y") {
@@ -531,15 +654,28 @@ void buatPesananDariHasil(int idx[], int n) {
 
     int hargaPerJam = cleaner.hargaPerJam[idxSpesialisasi];
     int totalBiaya = hargaPerJam * durasi;
+    
+    int jumlahBayar;
+    if (!readInt("Jumlah pembayaran (Rp): ", jumlahBayar) || jumlahBayar < totalBiaya) {
+        cout << "Pembayaran tidak valid. Minimal: Rp" << totalBiaya << "\n";
+        pauseLayar();
+        return;
+    }
+    
+    int kembalian = jumlahBayar - totalBiaya;
+    
     dbPesanan[jmlPesanan++] = {
         nextIdPesanan++,
         currentUser,
         cleaner.username,
         jasa_yang_dipilih,
         "Pending",
+        "",
         hargaPerJam,
         totalBiaya,
-        durasi
+        durasi,
+        jumlahBayar,
+        kembalian
     };
 
     cout << "\n[CRUD] Order Jasa berhasil dibuat!\n";
@@ -549,6 +685,8 @@ void buatPesananDariHasil(int idx[], int n) {
     cout << "Durasi: " << durasi << " jam\n";
     cout << "Harga/Jam: Rp" << hargaPerJam << "\n";
     cout << "Total Biaya: Rp" << totalBiaya << "\n";
+    cout << "Jumlah Bayar: Rp" << jumlahBayar << "\n";
+    cout << "Kembalian: Rp" << kembalian << "\n";
 }
 
 void cariCleaner() {
@@ -582,17 +720,29 @@ void cariCleaner() {
     
     else if (pilihan == 2) 
     {
-        string kota;
-        cout << "Nama kota: "; cin >> kota;
-        cin.ignore(1000, '\n');
-        string kotaLower = toLower(kota);
+        clearScreen();
+        int pilihan;
+        string region;
+        cout << "Pilih Region:\n";
+        cout << "1. Jawa Barat\n";
+        cout << "2. Jawa Tengah\n";
+        cout << "3. Jawa Timur\n";
+        cout << "4. Jakarta\n";
+        cout << "Pilihan: "; cin >> pilihan;
+        switch (pilihan) {
+            case 1: region = "jawabarat"; break;
+            case 2: region = "jawatengah"; break;
+            case 3: region = "jawatimur"; break;
+            case 4: region = "jakarta"; break;
+            default:
+                cout << "Pilihan tidak valid.\n";
+                return;
+        }
         for (int i = 0; i < jmlAkun; i++) 
         {
-            if (dbAkun[i].role == "cleaner" && toLower(dbAkun[i].lokasi) == kotaLower && spesialisasiSesuai(dbAkun[i]))
+            if (dbAkun[i].role == "cleaner" && toLower(dbAkun[i].region) == region && spesialisasiSesuai(dbAkun[i]))
             hasil[jumlahHasil++] = i;
         }
-        
-        
     } 
     else if (pilihan == 0) {
         return;
@@ -654,7 +804,7 @@ void cetakKuitansi() {
     }
 
     for (int i = 0; i < jmlPesanan; i++) {
-        if (dbPesanan[i].id == idPesanan) {
+        if (dbPesanan[i].id == idPesanan && bolehAksesPesanan(dbPesanan[i])) {
             indexPesanan = i;
             break;
         }
@@ -673,42 +823,56 @@ void cetakKuitansi() {
         return;
     }
     ofstream fileHTML("Kuitansi.html");
-    
-    
     if (fileHTML.is_open()) {
+        Pesanan& pesanan = dbPesanan[indexPesanan];
+        int kembalian = pesanan.bayar - pesanan.biaya;
+        
         fileHTML << "<!DOCTYPE html>\n";
         fileHTML << "<html>\n";
         fileHTML << "<head>\n";
         fileHTML << "<meta charset='UTF-8'>\n";
-        fileHTML << "<title>Kuitansi</title>\n";
+        fileHTML << "<title>Kuitansi Transaksi</title>\n";
         fileHTML << "<style>\n";
-        fileHTML << "body { font-family: Arial, sans-serif; margin: 20px; }\n";
-        fileHTML << "table { width: 100%; border-collapse: collapse; }\n";
-        fileHTML << "th, td { border: 1px solid black; padding: 10px; text-align: left; }\n";
-        fileHTML << "th { background-color: #4CAF50; color: white; }\n";
-        fileHTML << "h1 { text-align: center; }\n";
+        fileHTML << "body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }\n";
+        fileHTML << ".kuitansi { background-color: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }\n";
+        fileHTML << "h1 { text-align: center; color: #333; border-bottom: 3px solid #4CAF50; padding-bottom: 15px; }\n";
+        fileHTML << "h2 { color: #4CAF50; border-top: 2px solid #ddd; padding-top: 15px; margin-top: 20px; }\n";
+        fileHTML << ".info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dotted #ddd; }\n";
+        fileHTML << ".label { font-weight: bold; color: #555; }\n";
+        fileHTML << ".value { color: #333; }\n";
+        fileHTML << ".section-total { background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 15px 0; }\n";
+        fileHTML << ".total-row { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin: 5px 0; }\n";
+        fileHTML << ".kembalian { color: #27ae60; }\n";
+        fileHTML << ".tanggal { text-align: center; color: #999; font-size: 12px; margin-top: 20px; }\n";
         fileHTML << "</style>\n";
         fileHTML << "</head>\n";
         fileHTML << "<body>\n";
-        fileHTML << "<h1>=== KUITANSI & SUMMARY ===</h1>\n";
-        fileHTML << "<p>Tanggal: " << __DATE__ << " " << __TIME__ << "</p>\n";
-        fileHTML << "<table>\n";
-        fileHTML << "<tr><th>ID</th><th>Pelanggan</th><th>Cleaner</th><th>Jasa</th><th>Status</th><th>Harga/Jam</th><th>Biaya</th><th>Durasi</th></tr>\n";
+        fileHTML << "<div class='kuitansi'>\n";
+        fileHTML << "<h1>KUITANSI TRANSAKSI</h1>\n";
         
-        Pesanan& pesanan = dbPesanan[indexPesanan];
-        fileHTML << "<tr>\n";
-        fileHTML << "<td>" << pesanan.id << "</td>\n";
-        fileHTML << "<td>" << pesanan.pelanggan << "</td>\n";
-        fileHTML << "<td>" << (pesanan.cleaner.empty() ? "-" : pesanan.cleaner) << "</td>\n";
-        fileHTML << "<td>" << pesanan.jasa << "</td>\n";
-        fileHTML << "<td>" << pesanan.status << "</td>\n";
-        fileHTML << "<td>Rp" << pesanan.biayaPerJam << "</td>\n";
-        fileHTML << "<td>Rp" << pesanan.biaya << "</td>\n";
-        fileHTML << "<td>" << pesanan.durasi << " jam</td>\n";
-        fileHTML << "</tr>\n";
-        fileHTML << "<tr><th colspan='6'>TOTAL</th><th>Rp" << pesanan.biaya << "</th><th></th></tr>\n";
+        fileHTML << "<h2>Informasi Transaksi</h2>\n";
+        fileHTML << "<div class='info-row'><span class='label'>ID Pesanan:</span><span class='value'>#" << pesanan.id << "</span></div>\n";
+        fileHTML << "<div class='info-row'><span class='label'>Status:</span><span class='value'>" << pesanan.status << "</span></div>\n";
         
-        fileHTML << "</table>\n";
+        fileHTML << "<h2>Data Pemesan & Penyedia Jasa</h2>\n";
+        fileHTML << "<div class='info-row'><span class='label'>Pelanggan:</span><span class='value'>" << pesanan.pelanggan << "</span></div>\n";
+        fileHTML << "<div class='info-row'><span class='label'>Cleaner/Penyedia:</span><span class='value'>" << (pesanan.cleaner.empty() ? "-" : pesanan.cleaner) << "</span></div>\n";
+        fileHTML << "<div class='info-row'><span class='label'>Petugas Penyelesai:</span><span class='value'>" << (pesanan.petugas.empty() ? "-" : pesanan.petugas) << "</span></div>\n";
+        
+        fileHTML << "<h2>Detail Layanan</h2>\n";
+        fileHTML << "<div class='info-row'><span class='label'>Jenis Jasa:</span><span class='value'>" << pesanan.jasa << "</span></div>\n";
+        fileHTML << "<div class='info-row'><span class='label'>Durasi Kerja:</span><span class='value'>" << pesanan.durasi << " jam</span></div>\n";
+        fileHTML << "<div class='info-row'><span class='label'>Harga per Jam:</span><span class='value'>Rp" << fixed << setw(10) << pesanan.biayaPerJam << "</span></div>\n";
+        
+        fileHTML << "<h2>Rincian Biaya</h2>\n";
+        fileHTML << "<div class='section-total'>\n";
+        fileHTML << "<div class='total-row'><span>Total Biaya (Durasi x Harga/Jam):</span><span>Rp" << fixed << setw(10) << pesanan.biaya << "</span></div>\n";
+        fileHTML << "<div class='total-row' style='color: #e74c3c;'><span>Jumlah Pembayaran:</span><span>Rp" << fixed << setw(10) << pesanan.bayar << "</span></div>\n";
+        fileHTML << "<div class='total-row kembalian'><span>Sisa/Kembalian:</span><span>Rp" << fixed << setw(10) << (kembalian >= 0 ? kembalian : 0) << "</span></div>\n";
+        fileHTML << "</div>\n";
+        
+        fileHTML << "<div class='tanggal'>Tanggal Cetak: " << __DATE__ << " " << __TIME__ << "</div>\n";
+        fileHTML << "</div>\n";
         fileHTML << "</body>\n";
         fileHTML << "</html>\n";
         fileHTML.close();
@@ -751,7 +915,7 @@ int main() {
                 case 0: 
                     cout << "Keluar dari program...\n"; 
                     return 0;
-                default: 
+                default:
                     cout << "Pilihan tidak valid!\n";
             }
         }
