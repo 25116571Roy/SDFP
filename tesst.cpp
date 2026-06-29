@@ -9,6 +9,7 @@
 #include <vector>
 #include <conio.h>
 #include <iomanip>
+#include <sstream>
 using namespace std;
 
 const int MAX_SPESIALISASI = 4;
@@ -28,8 +29,8 @@ struct Pesanan {
 };
 
 Akun dbAkun[100] = {
-    {"pelanggan1", "123", "pelanggan", "Bekasi", {}, {}, 0, 0}, 
-    {"p", "1", "pelanggan", "Bekasi", {}, {}, 0, 0}, 
+    {"pelanggan1", "123", "pelanggan", "Bekasi", "", {}, {}, 0, 0},
+    {"p", "1", "pelanggan", "Bekasi", "", {}, {}, 0, 0},
     {"c", "1", "cleaner", "Bekasi", "jawabarat", {"regular", "deep clean"}, {60000, 100000}, 2, 4.5},
     {"mitra2", "123", "cleaner", "Mojokerto", "jawatengah", {"deep clean", "carpet cleaning"}, {90000, 50000}, 2, 3.5},
     {"mitra3", "123", "cleaner", "Surabaya", "jawatimur", {"carpet cleaning", "mattress cleaning"}, {45000, 70000}, 2, 1.5},
@@ -58,6 +59,12 @@ string toLower(string teks) {
         c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
     }
     return teks;
+}
+
+string formatFloat(float value, int precision = 2) {
+    stringstream ss;
+    ss << fixed << setprecision(precision) << value;
+    return ss.str();
 }
 
 bool usernameExists(const string& user) {
@@ -121,7 +128,7 @@ vector<size_t> hitungLebarKolom(const vector<string>& headers, const vector<vect
 void cetakGarisBatas(const vector<size_t>& widths) {
     cout << "+";
     for (size_t width : widths) {
-        cout << string(static_cast<int>(width + 2), '-') << "+";
+        cout << string(width + 2, '-') << "+";
     }
     cout << "\n";
 }
@@ -154,7 +161,7 @@ void tampilTabel(const vector<string>& headers, const vector<vector<string>>& ro
 void tampilTabelPesanan(const int indices[], int count) {
     vector<string> headers = {"ID", "Pelanggan", "Cleaner", "Jasa", "Status", "Durasi", "Harga/Jam", "Biaya"};
     vector<vector<string>> rows;
-    rows.reserve(count);
+    rows.reserve(static_cast<size_t>(count));
 
     for (int i = 0; i < count; i++) {
         const Pesanan& p = dbPesanan[indices[i]];
@@ -262,7 +269,7 @@ void registerAkun() {
     if (role == "2") {
         role = "cleaner";
         int jumlahSpesialisasi;
-        Akun akunBaru = {user, pass, role, "", {}, {}, 0, 0};
+        Akun akunBaru = {user, pass, role, "", "", {}, {}, 0, 0.0f};
         cout << "Lokasi: "; cin >> lokasi;
         akunBaru.lokasi = lokasi;
 
@@ -296,7 +303,7 @@ void registerAkun() {
         dbAkun[jmlAkun++] = akunBaru;
     } else if (role == "1") {
         role = "pelanggan";
-        dbAkun[jmlAkun++] = {user, pass, role, "", {}, {}, 0, 0};
+        dbAkun[jmlAkun++] = {user, pass, role, "", "", {}, {}, 0, 0.0f};
     } else {
         cout << "Role tidak valid!\n";
         pauseLayar();
@@ -356,10 +363,19 @@ void tampilSpesialisasiCleaner(const Akun& cleaner) {
         return;
     }
 
+    vector<string> headers = {"No", "Spesialisasi", "Harga/Jam"};
+    vector<vector<string>> rows;
+    rows.reserve(static_cast<size_t>(cleaner.jmlSpesialisasi));
+
     for (int i = 0; i < cleaner.jmlSpesialisasi; i++) {
-        cout << i + 1 << ". " << cleaner.spesialisasi[i]
-             << " | Harga/Jam: Rp" << cleaner.hargaPerJam[i] << "\n";
+        rows.push_back({
+            to_string(i + 1),
+            cleaner.spesialisasi[i],
+            "Rp" + to_string(cleaner.hargaPerJam[i])
+        });
     }
+
+    tampilTabel(headers, rows);
 }
 
 void updateJasa() {
@@ -494,33 +510,23 @@ void updateProgressKerja() {
     int idPesanan; string statusBaru, konfirmasi, petugas;
     clearScreen();
     cout << "\n--- DAFTAR PESANAN ---\n";
-    bool adaPesanan = false;
+    int indices[10];
+    int count = 0;
+
     for (int i = 0; i < jmlPesanan; i++) {
         if (dbPesanan[i].cleaner == currentUser) {
-            adaPesanan = true;
-            cout << "ID: " << dbPesanan[i].id
-            << " | Pelanggan: " << dbPesanan[i].pelanggan
-            << " | Jasa: " << dbPesanan[i].jasa
-            << " | Status: " << dbPesanan[i].status
-            << " | Durasi: " << dbPesanan[i].durasi << " jam"
-            << " | Harga/Jam: Rp" << dbPesanan[i].biayaPerJam
-            << " | Biaya: Rp" << dbPesanan[i].biaya << "\n";
+            indices[count++] = i;
         }
     }
-    if (!adaPesanan) {
+
+    if (count == 0) {
         cout << "belum ada pesanan\n";
+    } else {
+        tampilTabelPesanan(indices, count);
     }
     cout << "\n--- UPDATE PROGRESS ---\n";
 
-    adaPesanan = false;
-    for (int i = 0; i < jmlPesanan; i++) {
-        if (bolehAksesPesanan(dbPesanan[i])) {
-            adaPesanan = true;
-            break;
-        }
-    }
-
-    if (!adaPesanan) {
+    if (count == 0) {
         cout << "belum ada pesanan\n";
         pauseLayar();
         return;
@@ -561,18 +567,45 @@ void deleteBooking() {
     int idPesanan; string konfirmasi;
     clearScreen();
     cout << "\n--- HAPUS BOOKING ---\n";
+
+    int indices[10];
+    int count = 0;
+
+    for (int i = 0; i < jmlPesanan; i++) {
+        if (bolehAksesPesanan(dbPesanan[i])) {
+            indices[count++] = i;
+        }
+    }
+
+    if (count == 0) {
+        cout << "belum memiliki pesanan\n";
+        pauseLayar();
+        return;
+    }
+
+    tampilTabelPesanan(indices, count);
+
     cout << "Masukkan ID Booking yang dihapus: "; cin >> idPesanan;
-    
+
     for (int i = 0; i < jmlPesanan; i++) {
         if (dbPesanan[i].id == idPesanan && bolehAksesPesanan(dbPesanan[i])) {
+            if (toLower(dbPesanan[i].status) != "pending") {
+                cout << "Booking hanya bisa dihapus jika status masih Pending.\n";
+                cout << "Status saat ini: " << dbPesanan[i].status << "\n";
+                pauseLayar();
+                return;
+            }
+
             cout << "Yakin ingin menghapus booking ID " << idPesanan << "? (y/n): ";
             cin >> konfirmasi;
             if (konfirmasi == "y" || konfirmasi == "Y") {
+                int jumlahBayar = dbPesanan[i].bayar;
                 for (int j = i; j < jmlPesanan - 1; j++) {
                     dbPesanan[j] = dbPesanan[j + 1];
                 }
                 jmlPesanan--;
                 cout << "[CRUD] Booking ID " << idPesanan << " berhasil dihapus!\n";
+                cout << "Uang telah dikembalikan: Rp" << jumlahBayar << "\n";
             } else {
                 cout << "Penghapusan dibatalkan.\n";
             }
@@ -587,26 +620,42 @@ void tampilHasilCleaner(int idx[], int n) {
     clearScreen();
     if (n == 0) { cout << "Tidak ada cleaner yang sesuai.\n"; return; }
     cout << "\n--- HASIL PENCARIAN ---\n";
+
+    vector<string> headers = {"No", "Username", "Rating", "Lokasi", "Spesialisasi", "Harga/Jam"};
+    vector<vector<string>> rows;
+    rows.reserve(static_cast<size_t>(n));
+
     for (int i = 0; i < n; i++) {
         Akun& a = dbAkun[idx[i]];
-        cout << i+1 << ". " << a.username
-        << " | Rating: " << a.rating
-        << " | Lokasi: " << a.lokasi;
+        string spesialisasiStr = "";
+        string hargaStr = "";
 
         if (dari_input_jasa) {
             int idxSpesialisasi = cariIndexSpesialisasi(a, spesialisasi_yang_dipilih);
             if (idxSpesialisasi != -1) {
-                cout << " | Harga/Jam: Rp" << a.hargaPerJam[idxSpesialisasi];
+                spesialisasiStr = spesialisasi_yang_dipilih;
+                hargaStr = "Rp" + to_string(a.hargaPerJam[idxSpesialisasi]);
             }
         } else {
-            cout << " | Spesialisasi: ";
             for (int j = 0; j < a.jmlSpesialisasi; j++) {
-                if (j > 0) cout << ", ";
-                cout << a.spesialisasi[j] << " (Rp" << a.hargaPerJam[j] << "/jam)";
+                if (j > 0) spesialisasiStr += ", ";
+                spesialisasiStr += a.spesialisasi[j];
+                if (j > 0) hargaStr += ", ";
+                hargaStr += "Rp" + to_string(a.hargaPerJam[j]);
             }
         }
-        cout << "\n";
+
+        rows.push_back({
+            to_string(i + 1),
+            a.username,
+            formatFloat(a.rating),
+            a.lokasi,
+            spesialisasiStr,
+            hargaStr
+        });
     }
+
+    tampilTabel(headers, rows);
 }
 
 bool spesialisasiSesuai(const Akun& akun) {
@@ -647,7 +696,7 @@ void buatPesananDariHasil(int idx[], int n) {
     }
 
     int durasi;
-    if (!readInt("Durasi kerja (jam): ", durasi) || durasi <= 0) {
+    if (!readInt("Durasi kerja (jam): ", durasi) || durasi <= 0 || durasi > 72) {
         cout << "Durasi tidak valid.\n";
         return;
     }
@@ -655,10 +704,10 @@ void buatPesananDariHasil(int idx[], int n) {
     int hargaPerJam = cleaner.hargaPerJam[idxSpesialisasi];
     int totalBiaya = hargaPerJam * durasi;
     
+    cout << "Total biaya: Rp" << totalBiaya << "\n";
     int jumlahBayar;
     if (!readInt("Jumlah pembayaran (Rp): ", jumlahBayar) || jumlahBayar < totalBiaya) {
         cout << "Pembayaran tidak valid. Minimal: Rp" << totalBiaya << "\n";
-        pauseLayar();
         return;
     }
     
@@ -718,18 +767,18 @@ void cariCleaner() {
         }
     } 
     
-    else if (pilihan == 2) 
+    else if (pilihan == 2)
     {
         clearScreen();
-        int pilihan;
+        int pilihanRegion;
         string region;
         cout << "Pilih Region:\n";
         cout << "1. Jawa Barat\n";
         cout << "2. Jawa Tengah\n";
         cout << "3. Jawa Timur\n";
         cout << "4. Jakarta\n";
-        cout << "Pilihan: "; cin >> pilihan;
-        switch (pilihan) {
+        cout << "Pilihan: "; cin >> pilihanRegion;
+        switch (pilihanRegion) {
             case 1: region = "jawabarat"; break;
             case 2: region = "jawatengah"; break;
             case 3: region = "jawatimur"; break;
@@ -902,21 +951,27 @@ int main() {
             cout << "1. Login\n";
             cout << "2. Registrasi\n";
             cout << "0. Keluar Program\n";
-            cout << "Pilih menu: ";
-            cin >> pilihan;
+            if (!readInt("Pilih menu: ", pilihan)) {
+                cout << "Pilihan tidak valid! Harap masukkan angka.\n";
+                pauseLayar();
+                clearScreen();
+                continue;
+            }
 
             switch(pilihan) {
-                case 1: 
-                    login(); 
+                case 1:
+                    login();
                     break;
-                case 2: 
-                    registerAkun(); 
+                case 2:
+                    registerAkun();
                     break;
-                case 0: 
-                    cout << "Keluar dari program...\n"; 
+                case 0:
+                    cout << "Keluar dari program...\n";
                     return 0;
                 default:
                     cout << "Pilihan tidak valid!\n";
+                    pauseLayar();
+                    clearScreen();
             }
         }
 
